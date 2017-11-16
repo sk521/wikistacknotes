@@ -11,6 +11,7 @@ var User = models.User;
 
 var app = express();
 var wikiRouter = require('./routes/wiki');
+var usersRouter = require('./routes/users');
 
 
 app.use(morgan('dev'));
@@ -25,6 +26,7 @@ app.use(express.static(__dirname + '/public'));
 // PUT HERE BECAUSE WE WANT THE REQUEST TO GO THROUGH LINES 16 -22 of APP.JS
 // ANYTHING THAT STARTS WITH "/WIKI" (THE REQUEST), GET PIPED INTO THE SUBROUTER(WIKIROUTER)
 app.use('/wiki', wikiRouter);
+app.use('/users', usersRouter);
 
 
 app.engine('html', nunjucks.render);
@@ -44,10 +46,15 @@ app.use(function (err, req, res, next) {
   res.status(500).send(err.message);
 });
 
-User.sync({ force: true })
+
+// WE ARE RETURNED A PROMISE ANYTIME WE INTERACT WITHA DB SYNC USER MODEL: If it doesnt exist create a User table, and if it already exists match the columns with the given scheme
+User.sync()
+
+  // Our .then success function
+  // Which means once User syncs and is successful, start Page sync for our page model
   .then(function () {
     // write 'return' so next .then function has to wait until previous is complete
-    return Page.sync({ force: true });
+    return Page.sync();
   })
   .then(function () {
     app.listen(3001, function() {

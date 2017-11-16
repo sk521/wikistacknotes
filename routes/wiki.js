@@ -6,6 +6,7 @@ const express = require('express');
 const router = express.Router();
 const models = require('../models');
 const Page = models.Page;
+const User = models.User;
 module.exports = router;
 
 
@@ -26,17 +27,70 @@ router.get('/', function (req, res, next) {
 // POST /WIKI
 router.post('/', function(req, res, next) {
 
-  // title, content, status
-  var newPage = Page.build(req.body);
+  User.findOrCreate({
+    where: {
+      email: req.body.authorEmail,
+      name: req.body.authorName
+    }
+  })
 
-  // .save takes ^ the instance/object from the JS and put it into my database
-  // this is asynchronous, this is going to return a promise
-  newPage.save()
-    .then(function(savedPage) {
-      res.redirect(savedPage.route);
+     // [pageThatWasFoundOrCreated, createdBoolean] we get two values
+     // .spread(bluebird) when you are expecting multiple values from array back, spread as multiple parameters
+    .spread(function(user, wasCreatedBool) {
+
+        //.create builds & saves
+        return Page.create({
+          title: req.body.title,
+          content: req.body.content,
+          status: req.body.status
+        }).then(function(createdPage) {
+
+          // setAuthor(index.js line 63)
+          // setAuthor is equal to user from line 39
+          // Asyn, setting userid into page row
+          return createdPage.setAuthor(user)
+        });
+    })
+    .then(function(createdPage) {
+      res.redirect(createdPage.route)
     })
     .catch(next);
-});
+  });
+
+
+ // var author = User.build({
+  //   //Name of user comes from req.body.authorName
+  //   name: req.body.authorName,
+  //   // Email comes from req.body.authorEmail
+  //   email: req.body.authorEmail
+  // });
+
+
+
+  // ISSUE WITH THIS GROUP OF CODE: Cant create the same author cause email is not unique
+
+  // author.save()
+  //   .then(function(savedAuthor) {
+  //     console.log(savedAuthor);
+  //   })
+  //   .catch()
+
+
+  // title, content, status
+  // var newPage = Page.build(req.body);
+
+  // // .save takes ^ the instance/object from the JS and put it into my database
+  // // this is asynchronous, this is going to return a promise
+  // newPage.save()
+  //   .then(function(savedPage) {
+  //     res.redirect(savedPage.route);
+  //   })
+  //   .catch(next);
+
+
+
+
+
 
 
 //RETRIEVE THE "ADD A PAGE" FORM
@@ -67,10 +121,19 @@ router.get('/:urlTitle', function(req, res, err) {
         return next(new Error('That page was not found!'));
       }
 
-      // goes into our views folder and to the file wikipage.html
-      res.render('wikipage', {
-        page: page
-      });
+      return page.getAuthor()
+        .then(function(author) {
+
+          // Attach to our page instance(page.author) to the author we found using page.getAuthor
+          page.author = author;
+          console.log(page);
+
+          // goes into our views folder and to the file wikipage.html
+          res.render('wikipage', {
+            page: page
+          });
+
+        });
 
     })
     .catch(err);
